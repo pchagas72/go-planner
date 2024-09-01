@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Planner struct {
@@ -30,23 +32,44 @@ func (p *Planner) PrettyPrint(){
 }
 
 func (p *Planner) WriteChanges(){
-    dir, oldErr := os.UserHomeDir()
-    check(oldErr)
+    dir, err := os.UserHomeDir()
+    check(err)
     todoJson, err := json.Marshal(p.TODO)
     check(err)
-    os.WriteFile(dir+"/.local/tasks.json", todoJson, 0666)
+    err = os.WriteFile(dir+"/.local/tasks.json", todoJson, 0666)
+    check(err)
 }
 
 func (p *Planner) ReadState(){
-    dir, oldErr := os.UserHomeDir()
-    check(oldErr)
+    dir, err := os.UserHomeDir()
+    check(err)
     todoJson, err := os.ReadFile(dir+"/.local/tasks.json")
+    if (err != nil){
+        err = os.WriteFile(dir+"/.local/tasks.json",[]byte("[]"),0755)
+        check(err)
+        todoJson, err = os.ReadFile(dir+"/.local/tasks.json")
+        check(err)
+    }
     check(err)
     var todo []string
-    NewErr := json.Unmarshal(todoJson, &todo)
-    check(NewErr)
+    err = json.Unmarshal(todoJson, &todo)
+    check(err)
     p.TODO = todo
 
+}
+
+func (p *Planner) EditTask(index int){
+    list := p.TODO
+    var editedTask string = getUserAnswer()
+    p.TODO = []string{}
+    for i, task := range(list){
+        if i == index{
+            p.TODO = append(p.TODO, editedTask)
+        } else{
+            p.TODO = append(p.TODO, task)
+        }
+    }
+    p.WriteChanges()
 }
 
 func (p *Planner) Menu(){
@@ -57,23 +80,40 @@ func (p *Planner) Menu(){
     fmt.Println("(1) - Write task")
     fmt.Println("(2) - Delete Task")
     var choice string = getUserAnswer()
+    choice = strings.Trim(choice, "\n ")
     if (choice == "1"){
         fmt.Print("Type the task: ")
         var newTask string = getUserAnswer()
         p.AddTask(newTask)
         p.WriteChanges()
-    } else{
+    } else if choice == "2"{
         fmt.Print("Type the task index: ")
         delTask, err := strconv.Atoi(getUserAnswer())
         check(err)
         p.DeleteTask(delTask)
         p.WriteChanges()
+    } else if choice == "3"{
+        if len(p.TODO) == 0{
+            fmt.Println("Write a task first!!")
+        }
+        fmt.Print("Type the task index: ")
+        editIndex, err := strconv.Atoi(
+            strings.Trim(getUserAnswer(), "\n "))
+        check(err)
+        fmt.Printf("Editing task %s", p.TODO[editIndex-1])
+        p.EditTask(editIndex-1)
+    }else {
+        fmt.Println("Erro! Entrada inválida")
+        fmt.Print("Entrada: ")
+        fmt.Print(choice)
     }
 }
 
 func getUserAnswer() string{
-    var choice string;
-    _, err := fmt.Scanln(&choice)
+    in := bufio.NewReader(os.Stdin)
+    var choice string
+    var err error
+    choice, err = in.ReadString('\n')
     check(err)
     return choice
 }
